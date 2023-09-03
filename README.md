@@ -1,6 +1,6 @@
 # feeling-lucky-wiki
 
-If you're anything like me, you've been using search engines to get to the first link on Google for years. I cannot be bothered to type out @wikipedia or remember any other shortcuts. I just search something like "example wiki" and click the first link 99% of the time.
+If you're anything like me, you've been using search engines to get to the first link for years. I cannot be bothered to type out @wikipedia or remember any other shortcuts. I just search something like "example wiki" and click the first link 99% of the time.
 
 This Firefox addon redirects search queries in the URL bar through Google's 'I'm Feeling Lucky" function if the phrase contains the stand-alone word "wiki".
 
