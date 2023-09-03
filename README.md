@@ -1,4 +1,4 @@
-# feeling-lucky-wiki
+# Feeling-Lucky-Wiki
 
 If you're anything like me, you've been using search engines to get to the first link for years. I cannot be bothered to type out @wikipedia or remember any other shortcuts. I just search something like "example wiki" and click the first link 99% of the time.
 
