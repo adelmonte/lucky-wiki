@@ -10,7 +10,7 @@ For instance:
 
 ***NOTE***
 This addon is **NOT** compatable with **ClearURLs** addon.
-It also **MUST** be used in conjunction with the **Skip-Redirect** addon to avoid the Google interception warning. 
+It also **MUST** be used in conjunction with the **Skip-Redirect** addon to avoid the Google Redirect Notice. 
 For Skip-Redirect, I use the Mode "Skip all redirects except for URLs matching any of the lines in the no-skip-urls-list".
 
 https://addons.mozilla.org/en-US/firefox/addon/skip-redirect/
@@ -19,7 +19,7 @@ https://addons.mozilla.org/en-US/firefox/addon/skip-redirect/
 
 I don't like Google, but it's the fastest for this purpose. 
 
- The javascript injects the query into https://www.google.com/search?q=${encodedQuery}&btnI=I%27m+Feeling+Lucky, but I suppose if you edited that url, it should work for any other website. 
+The script injects the query into https://www.google.com/search?q=${encodedQuery}&btnI=I%27m+Feeling+Lucky, but I suppose if you edited that url, it should work for any other website. 
 
 I have half a mind to do something like this for Reddit, but search engines are more straightforward to me than Reddit's search function for the time being.
 
