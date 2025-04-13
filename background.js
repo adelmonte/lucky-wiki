@@ -1,141 +1,58 @@
-let redirectUrls = {};
+// Track redirects to avoid loops
+let redirected = {};
 
-browser.webRequest.onBeforeRequest.addListener(
-  function(details) {
-    const url = new URL(details.url);
-    const query = url.searchParams.get("q");
-    const tabId = details.tabId;
-
-    // Check if the word "wiki" is standing alone in the query string
-    const regex = /\bwiki\b/i;
-    const isStandaloneWiki = regex.test(query);
+// Listen for messages from content script
+browser.runtime.onMessage.addListener((message, sender) => {
+  if (message.action === 'redirect' && sender.tab) {
+    const tabId = sender.tab.id;
     
-    if (isStandaloneWiki && !(tabId in redirectUrls)) {
-      const encodedQuery = encodeURIComponent(query);
-      const redirectUrl = `https://www.google.com/search?q=${encodedQuery}&btnI=I%27m+Feeling+Lucky`;
-      redirectUrls[tabId] = redirectUrl;
-      return { redirectUrl: redirectUrl };
+    // Prevent redirect loops
+    if (redirected[tabId]) {
+      delete redirected[tabId];
+      return;
     }
     
-    delete redirectUrls[tabId];
+    // Mark this tab for redirection
+    redirected[tabId] = true;
+    
+    // Perform the redirect
+    browser.tabs.update(tabId, { url: message.url });
+  }
+});
+
+// Handle redirect notices from Google
+browser.webRequest.onBeforeRequest.addListener(
+  function(details) {
+    // Check if this is a Google redirect URL
+    if (details.url.includes('google.com/url') && 
+        details.url.includes('?q=')) {
+      
+      // Get the destination URL from the q parameter
+      const url = new URL(details.url);
+      const redirectTarget = url.searchParams.get('q');
+      
+      if (redirectTarget) {
+        return { redirectUrl: redirectTarget };
+      }
+    }
+    return {};
   },
-  { urls: ["<all_urls>"], types: ["main_frame"] },
+  { urls: ["*://*.google.com/url?*"] },
   ["blocking"]
 );
 
-
-// Thank you johnnyrose
-//https://raw.githubusercontent.com/johnnyRose/skip-google-redirects/master/background.js
-
-var parameters = [
-    // The standard URL parameter when clicking a google search result.
-    // Example: https://www.google.com/url?sa=t&rct=j&q=&esrc=s&url=https%3A%2F%2Fgithub.com%2F&usg=AOvVaw38IHvcyBra8HGhmSxvlCGw
-    'url=',
-    
-    // When JavaScript is disabled: The "I'm Feeling Lucky" redirect page as well as the regular search result page.
-    // Example: https://www.google.com/url?q=https://github.com/
-    'q='
-];
-
-var mostRecentTab = null;
-var mostRecentWindow = null;
-var mostRecentlyFocusedWindowId = null;
-
-browser.tabs.onCreated.addListener(function (tab) {
-    mostRecentTab = tab;
+// Clean up redirected object when tabs are closed
+browser.tabs.onRemoved.addListener(function(tabId) {
+  if (tabId in redirected) {
+    delete redirected[tabId];
+  }
 });
 
-browser.windows.onCreated.addListener(function (window) {
-    mostRecentWindow = window;
+// Listen for navigation to handle popup page behaviors
+browser.webNavigation.onCommitted.addListener(function(details) {
+  // Check if navigation is a Google Search
+  if (details.url.includes('/search') && details.tabId) {
+    // Reset any existing redirect flags to avoid lockouts
+    delete redirected[details.tabId];
+  }
 });
-
-browser.windows.onFocusChanged.addListener(function (windowId) {
-    mostRecentlyFocusedWindowId = windowId;
-});
-
-browser.webRequest.onBeforeRequest.addListener(function (details) {
-    
-    var existingParameters = parameters
-      .map(function (parameter) {
-        return {
-            parameter: parameter,
-            index: details.url.indexOf(parameter)
-        };
-    }).filter(function (param) {
-        return param.index !== -1;
-    });
-    
-    if (existingParameters.length > 0) {
-        var param = existingParameters[0];
-        var newUrl = getTargetUrl(details, param);
-        
-        incrementCounter();
-        
-        var requestType = getRequestType(details, mostRecentTab);
-                
-        if (requestType.tab || requestType.window) {
-            // Handle new tab/window logic - update the newest tab's URL, because
-            // redirecting below doesn't seem to work for some reason and
-            // there is no content script injected into about: pages.
-            browser.tabs.update(mostRecentTab.id, { url: newUrl });
-        } else {
-            browser.tabs.update(details.tabId, { url: newUrl });
-        }
-        
-        mostRecentTab = null;
-        mostRecentWindow = null;
-        mostRecentlyFocusedWindowId = null;
-        
-        return {
-            redirectUrl: newUrl
-        };
-    }
-
-}, { urls: ["*://*.google.com/url?*"] }, ["blocking"]);
-
-function getTargetUrl(details, param) {
-    var startIndex = param.index + param.parameter.length;
-    var endIndex = details.url.indexOf('&', startIndex);
-    
-    if (endIndex === -1) {
-        endIndex = details.url.length;
-    }
-    
-    return decodeURIComponent(details.url.substring(startIndex, endIndex));
-}
-
-function incrementCounter() {
-    
-    browser.storage.local
-        .get("count")
-        .then(function (result) {
-            var count = (result && result.count) || 0;
-            browser.storage.local.set({ count: count + 1 });
-        });
-}
-
-function getRequestType(details, mostRecentTab) {
-    
-    var requestType = {
-        tab: false,
-        window: false
-    };
-    
-    if (mostRecentTab !== null) {
-        
-        if (mostRecentTab.openerTabId !== details.tabId &&
-            typeof(mostRecentTab.openerTabId) !== "undefined") {
-            
-            // New tab
-            requestType.tab = true;
-        } else if (mostRecentWindow !== null && 
-            mostRecentWindow.id === mostRecentlyFocusedWindowId &&
-            mostRecentWindow.windowId !== mostRecentTab.windowId) {
-            
-            // New window
-            requestType.window = true;
-        }
-    }
-    
-    return requestType;
-}
