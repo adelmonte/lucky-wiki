@@ -13,4 +13,4 @@ Features:
 - Zero configuration required
 - Lightweight with minimal permissions
 
-Note: This extension only activates when "wiki" appears as a standalone word in your search. "treewiki" or "tree-wiki" will not work.
+Note: This extension only activates when "wiki" appears as a standalone word in your search.
