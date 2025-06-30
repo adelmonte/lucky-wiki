@@ -1,6 +1,5 @@
 // This script runs in the context of the search page
 (function() {
-  // Run at document_start to intercept before page loads
   console.log("Wiki Search Detector loaded");
   
   // Function to get query parameter from URL
@@ -12,20 +11,17 @@
   // Function to check if query contains standalone "wiki"
   function containsStandaloneWiki(query) {
     if (!query) return false;
-    
-    // Check if "wiki" is a standalone word
     const regex = /\bwiki\b/i;
     return regex.test(query);
   }
   
-  // Monitor for URL changes (especially for SPA behavior)
+  // Monitor for URL changes
   let lastUrl = location.href;
   
   // Function to process the current URL and redirect if needed
   function processUrl() {
     const currentUrl = location.href;
     
-    // Don't process the same URL twice
     if (currentUrl === lastUrl && document.readyState !== 'loading') return;
     lastUrl = currentUrl;
     
@@ -42,15 +38,27 @@
     
     console.log("Current query:", query);
     
-    // Check if query contains standalone "wiki"
-    if (query && containsStandaloneWiki(query)) {
-      console.log("Wiki detected in query, redirecting...");
+    // Check if query contains standalone "wiki" OR if we're searching from address bar
+    if (query && (containsStandaloneWiki(query) || 
+        document.querySelector('input[name="q"]')?.value?.toLowerCase()?.includes('wiki'))) {
       
-      // Create the "I'm Feeling Lucky" URL
-      const encodedQuery = encodeURIComponent(query);
+      console.log("Wiki detected, redirecting...");
       
-      // Use DuckDuckGo's bang syntax for direct redirection
-      const redirectUrl = `https://duckduckgo.com/?q=!+${encodedQuery}`;
+      // Get the actual search term including wiki
+      let searchTerm = query;
+      const searchInput = document.querySelector('input[name="q"]');
+      if (searchInput && searchInput.value && searchInput.value.toLowerCase().includes('wiki')) {
+        searchTerm = searchInput.value;
+      }
+      
+      // If "wiki" isn't in the search term, add it
+      if (!searchTerm.toLowerCase().includes('wiki')) {
+        searchTerm = searchTerm + ' wiki';
+      }
+      
+      // Use Google's I'm Feeling Lucky directly
+      const encodedQuery = encodeURIComponent(searchTerm);
+      const redirectUrl = `https://www.google.com/search?q=${encodedQuery}&btnI=1`;
       
       // Notify the background script to perform the redirect
       browser.runtime.sendMessage({
@@ -60,13 +68,9 @@
     }
   }
   
-  // Process URL when page is loading
   processUrl();
-  
-  // Also process when DOM content is loaded (for late changes)
   document.addEventListener('DOMContentLoaded', processUrl);
   
-  // Modern SPA sites might use history API to change the URL without a full page load
   const pushState = history.pushState;
   history.pushState = function() {
     pushState.apply(history, arguments);
@@ -79,14 +83,11 @@
     processUrl();
   };
   
-  // Handle back/forward navigation
   window.addEventListener('popstate', processUrl);
   
-  // For Google's search-as-you-type behavior
   const observer = new MutationObserver(function(mutations) {
     for (const mutation of mutations) {
       if (mutation.type === 'childList' || mutation.type === 'attributes') {
-        // URL may have changed via AJAX, check again
         if (location.href !== lastUrl) {
           processUrl();
         }
@@ -94,7 +95,6 @@
     }
   });
   
-  // Start observing once the document body is available
   if (document.body) {
     observer.observe(document.body, { 
       childList: true, 

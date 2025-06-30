@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Feeling-Lucky-Wiki",
-  "version": "1.0",
-  "description": "Redirects search queries containing the word 'wiki' through Google's 'I'm Feeling Lucky' function.",
+  "version": "1.1",
+  "description": "This extension enhances your browsing experience by detecting search queries that contain the standalone word 'wiki' and automatically redirecting through a 'Feeling Lucky' search function.",
   "homepage_url": "https://github.com/adelmonte/feeling-lucky-wiki",
   
   "icons": {
@@ -35,8 +35,8 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.google.com/search*",
-        "*://*.bing.com/search*",
+        "*://*.google.com/*",
+        "*://*.bing.com/*", 
         "*://*.duckduckgo.com/*"
       ],
       "js": ["content-script.js"],
