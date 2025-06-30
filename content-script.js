@@ -1,115 +1,58 @@
-// This script runs in the context of the search page
-(function() {
-  // Run at document_start to intercept before page loads
-  console.log("Wiki Search Detector loaded");
-  
-  // Function to get query parameter from URL
-  function getQueryParam(url, param) {
-    const searchParams = new URLSearchParams(new URL(url).search);
-    return searchParams.get(param);
-  }
-  
-  // Function to check if query contains standalone "wiki"
-  function containsStandaloneWiki(query) {
-    if (!query) return false;
+// Track redirects to avoid loops
+let redirected = {};
+
+// Listen for messages from content script
+browser.runtime.onMessage.addListener((message, sender) => {
+  if (message.action === 'redirect' && sender.tab) {
+    const tabId = sender.tab.id;
     
-    // Check if "wiki" is a standalone word
-    const regex = /\bwiki\b/i;
-    return regex.test(query);
-  }
-  
-  // Monitor for URL changes (especially for SPA behavior)
-  let lastUrl = location.href;
-  
-  // Function to process the current URL and redirect if needed
-  function processUrl() {
-    const currentUrl = location.href;
-    
-    // Don't process the same URL twice
-    if (currentUrl === lastUrl && document.readyState !== 'loading') return;
-    lastUrl = currentUrl;
-    
-    // Get search query from various search engines
-    let query = null;
-    
-    if (currentUrl.includes('google.com')) {
-      query = getQueryParam(currentUrl, 'q');
-    } else if (currentUrl.includes('bing.com')) {
-      query = getQueryParam(currentUrl, 'q');
-    } else if (currentUrl.includes('duckduckgo.com')) {
-      query = getQueryParam(currentUrl, 'q') || getQueryParam(currentUrl, 'p');
+    // Prevent redirect loops
+    if (redirected[tabId]) {
+      delete redirected[tabId];
+      return;
     }
     
-    console.log("Current query:", query);
+    // Mark this tab for redirection
+    redirected[tabId] = true;
     
-    // Check if query contains standalone "wiki"
-    if (query && containsStandaloneWiki(query)) {
-      console.log("Wiki detected in query, redirecting...");
-      
-      // Create the "I'm Feeling Lucky" URL
-      const encodedQuery = encodeURIComponent(query);
-      
-      // Use DuckDuckGo's bang syntax for direct redirection
-      const redirectUrl = `https://duckduckgo.com/?q=!+${encodedQuery}`;
-      
-      // Notify the background script to perform the redirect
-      browser.runtime.sendMessage({
-        action: 'redirect',
-        url: redirectUrl
-      });
-    }
+    // Perform the redirect
+    browser.tabs.update(tabId, { url: message.url });
   }
-  
-  // Process URL when page is loading
-  processUrl();
-  
-  // Also process when DOM content is loaded (for late changes)
-  document.addEventListener('DOMContentLoaded', processUrl);
-  
-  // Modern SPA sites might use history API to change the URL without a full page load
-  const pushState = history.pushState;
-  history.pushState = function() {
-    pushState.apply(history, arguments);
-    processUrl();
-  };
-  
-  const replaceState = history.replaceState;
-  history.replaceState = function() {
-    replaceState.apply(history, arguments);
-    processUrl();
-  };
-  
-  // Handle back/forward navigation
-  window.addEventListener('popstate', processUrl);
-  
-  // For Google's search-as-you-type behavior
-  const observer = new MutationObserver(function(mutations) {
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList' || mutation.type === 'attributes') {
-        // URL may have changed via AJAX, check again
-        if (location.href !== lastUrl) {
-          processUrl();
-        }
+});
+
+// Handle redirect notices from Google
+browser.webRequest.onBeforeRequest.addListener(
+  function(details) {
+    // Check if this is a Google redirect URL
+    if (details.url.includes('google.com/url') && 
+        details.url.includes('?q=')) {
+      
+      // Get the destination URL from the q parameter
+      const url = new URL(details.url);
+      const redirectTarget = url.searchParams.get('q');
+      
+      if (redirectTarget) {
+        return { redirectUrl: redirectTarget };
       }
     }
-  });
-  
-  // Start observing once the document body is available
-  if (document.body) {
-    observer.observe(document.body, { 
-      childList: true, 
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['href']
-    });
-  } else {
-    document.addEventListener('DOMContentLoaded', function() {
-      observer.observe(document.body, { 
-        childList: true, 
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['href']
-      });
-    });
+    return {};
+  },
+  { urls: ["*://*.google.com/url?*"] },
+  ["blocking"]
+);
+
+// Clean up redirected object when tabs are closed
+browser.tabs.onRemoved.addListener(function(tabId) {
+  if (tabId in redirected) {
+    delete redirected[tabId];
   }
-})();
+});
+
+// Listen for navigation to handle popup page behaviors
+browser.webNavigation.onCommitted.addListener(function(details) {
+  // Check if navigation is a Google Search
+  if (details.url.includes('/search') && details.tabId) {
+    // Reset any existing redirect flags to avoid lockouts
+    delete redirected[details.tabId];
+  }
+});
